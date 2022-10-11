@@ -16,7 +16,7 @@
 
 
 int create_and_bind_socket(struct sockaddr *listen_addr, socklen_t addrlen){
-    int sockfd = socket(AF_INET6, SOCK_DGRAM, 0);
+    int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     int res = bind(sockfd, listen_addr, addrlen);
     if(res != 0){
         ERROR("Couldnt bind socket");
@@ -29,14 +29,13 @@ int main(int argc, char **argv) {
     DEBUG("Receiver starting");
     int opt;
 
-    char *listen_ip = "::";
-    char *listen_port_err;
+    char *listen_ip = "127.0.0.1";
     uint16_t listen_port;
 
-    listen_port = (uint16_t) 1359;
+    listen_port = (uint16_t) 2241;
 
-    struct sockaddr_in6* listen_addr = build_ipv6_address(listen_ip, listen_port);
-    socklen_t listen_addrlen = sizeof (struct sockaddr_in6);
+    struct sockaddr_in* listen_addr = build_ipv4_address(listen_ip, listen_port);
+    socklen_t listen_addrlen = sizeof (struct sockaddr_in);
 
     int sockfd = create_and_bind_socket((struct sockaddr*) listen_addr, listen_addrlen);
     free(listen_addr);

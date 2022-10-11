@@ -28,14 +28,11 @@ uint64_t current_time_millis(){
     return millis;
 }
 
-struct sockaddr_in6* build_ipv6_address(char* ip, uint16_t port){
-    struct sockaddr_in6 *addr = malloc(sizeof(struct sockaddr_in6));
-    memset(addr, 0, sizeof(struct sockaddr_in6));
-    addr->sin6_port = htons(port);
-    addr->sin6_family = AF_INET6;
-    if (inet_pton(AF_INET6, ip, &(addr->sin6_addr)) != 1) {
-        ERROR("Couldnt inet_pton");
-        exit(1);
-    }
+struct sockaddr_in* build_ipv4_address(char* ip, uint16_t port){
+    struct sockaddr_in *addr = malloc(sizeof(struct sockaddr_in));
+    memset(addr, 0, sizeof(struct sockaddr_in));
+    addr->sin_port = htons(port);
+    addr->sin_family = AF_INET;
+    addr->sin_addr.s_addr = inet_addr(ip);
     return addr;
 }

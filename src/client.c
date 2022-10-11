@@ -16,7 +16,7 @@
 #include "../header/log.h"
 
 int create_and_connect_socket(struct sockaddr *receiver_addr, socklen_t addrlen){
-    int sockfd = socket(AF_INET6, SOCK_DGRAM, 0);
+    int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     int res = connect(sockfd, receiver_addr, addrlen);
     if(res != 0){
         ERROR("Couldnt connect socket");
@@ -28,15 +28,14 @@ int create_and_connect_socket(struct sockaddr *receiver_addr, socklen_t addrlen)
 int main(int argc, char **argv) {
     int opt;
 
-    char *receiver_ip = "::1";
-    char *receiver_port_err;
+    char *receiver_ip = "127.0.0.1";
     uint16_t receiver_port;
 
-    receiver_port = (uint16_t) 13;
+    receiver_port = (uint16_t) 2241;
 
 
-    struct sockaddr_in6* receiver_addr = build_ipv6_address(receiver_ip, receiver_port);
-    socklen_t receiver_addrlen = sizeof (struct sockaddr_in6);
+    struct sockaddr_in* receiver_addr = build_ipv4_address(receiver_ip, receiver_port);
+    socklen_t receiver_addrlen = sizeof (struct sockaddr_in);
 
 
     int sockfd;
