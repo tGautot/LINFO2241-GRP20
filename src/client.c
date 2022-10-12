@@ -38,24 +38,27 @@ int main(int argc, char **argv) {
     int rate;
     int time_interval;
 
-    while ((opt = getopt(argc, argv, "k:r:t")) != -1) {
+    while ((opt = getopt(argc, argv, "k:r:t:")) != -1) {
+        //DEBUG("New option %c val %s", opt, optarg);
         switch (opt) {
             case 'k':
-                key_size = atoi(argv[1]);
+                key_size = atoi(optarg);
                 break;
             case 'r':
-                rate = atoi(argv[2]);
+                rate = atoi(optarg);
                 break;
             case 't':
-                time_interval = atoi(argv[3]);
+                time_interval = atoi(optarg);
                 break;
         }
     }
-
+    DEBUG("FINISHED PARSING");
     printf("%d\n",1);
-    char mystr[strlen(argv[7])];
-    strcpy(mystr,argv[7]);
+    fflush(stdout);
+    char mystr[strlen(argv[argc-1])];
+    strcpy(mystr,argv[argc-1]);
     printf("%d\n",2);
+    fflush(stdout);
     
     char *receiver_ip = strtok(mystr,":");
     printf("%s\n",receiver_ip);
@@ -88,18 +91,22 @@ int main(int argc, char **argv) {
         message->key[i] = (uint8_t) rand();
     }
     
+    DEBUG("Sengind query for file %d with key size %d (%u %u %u %u)", message->file_number, message->key_size,
+        message->key[0], message->key[1], message->key[2], message->key[3]);
     // Send message
+    // should use htonl but doesnt work with it
+    message->file_number = (message->file_number);
+    message->key_size = (message->key_size);
     if (send(sockfd, message, sizeof(message), 0) < 0) {
         printf("Unable to send message\n");
         return -1;
     }
 
-    struct server_message* response;
+    server_message_t* response = safe_malloc(sizeof(server_message_t), __FILE__, __LINE__);
     // Receive server's response
     int a = recv(sockfd, response, sizeof(response), 0);
     if (a < 0) {
-        printf("%d\n",a);
-        printf("Error while receiving the response\n");
+        ERROR("Error while receiving the response %d", a);
     }
     
     close(sockfd);

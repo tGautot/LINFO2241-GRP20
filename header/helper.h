@@ -7,17 +7,17 @@
 #include <stdio.h>  
 #include <sys/time.h>
 
-struct client_message {
+typedef struct client_message {
     uint32_t file_number;
     uint32_t key_size;
     uint8_t key[1000*1000];
-};
+} client_message_t;
 
-struct server_message {
+typedef struct server_message {
     uint8_t error_code;
     uint32_t file_size;
     uint8_t encrpt_file[1000*1000];
-};
+} server_message_t;
 
 void* safe_malloc(size_t nbytes, char* file, int line);
 uint64_t current_time_millis();
