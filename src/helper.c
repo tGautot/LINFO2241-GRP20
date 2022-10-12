@@ -36,3 +36,4 @@ struct sockaddr_in* build_ipv4_address(char* ip, uint16_t port){
     addr->sin_addr.s_addr = inet_addr(ip);
     return addr;
 }
+
