@@ -123,8 +123,6 @@ int server_routine(int sockfd, thread_arg_t* targ){
 
     DEBUG("Routine loop starting");
     while(true){
-        sleep(1); // Usefull for debugging but should be removed
-        
         // Send results
         pthread_mutex_lock(&targ->mtx_finish_job);
 
@@ -152,49 +150,51 @@ int server_routine(int sockfd, thread_arg_t* targ){
                 DEBUG("Sending response of job %ld (querry index %d)", rslt.querry_id, qidx);
                 send(querries[qidx]->sfd, tosend, sizeof(server_message_t), 0);
             }
+            close(querries[qidx]->sfd);
         }
 
         pthread_mutex_unlock(&targ->mtx_finish_job);
 
-        // Accept connection
-        struct sockaddr_in cltaddr;
-        socklen_t cltaddr_len;
-        int qsfd = accept(sockfd, (struct sockaddr*) &cltaddr, &cltaddr_len);
-        if(qsfd == -1) continue;
+        // Accept connection (up to 100 querries at once)
+        for(int qi = 0; qi < 100; qi++){
+            struct sockaddr_in cltaddr;
+            socklen_t cltaddr_len;
+            int qsfd = accept(sockfd, (struct sockaddr*) &cltaddr, &cltaddr_len);
+            if(qsfd == -1) break;
 
-        // Receive querry
-        // This is not very well done, easily ddosable
-        DEBUG("Received connection, waiting for message");
-        nw_in_len = recv(qsfd, (void*) &rcvd_msg, nw_in_len, 0);
+            // Receive querry
+            // This is not very well done, easily ddosable
+            DEBUG("Received connection, waiting for message");
+            nw_in_len = recv(qsfd, (void*) &rcvd_msg, nw_in_len, 0);
 
-        if(nw_in_len < 0){
-            ERROR("Couldnt read query from network");
-            return -1;
-        }
+            if(nw_in_len < 0){
+                ERROR("Couldnt read query from network");
+                return -1;
+            }
 
-        DEBUG("Querry for file %d with keysize %d", rcvd_msg.file_number, rcvd_msg.key_size);
-        if(rcvd_msg.key_size >= 4) DEBUG("Key starts with %u %u %u %u", rcvd_msg.key[0], rcvd_msg.key[1], rcvd_msg.key[2], rcvd_msg.key[3]);
+            DEBUG("Querry for file %d with keysize %d", rcvd_msg.file_number, rcvd_msg.key_size);
+            if(rcvd_msg.key_size >= 4) DEBUG("Key starts with %u %u %u %u", rcvd_msg.key[0], rcvd_msg.key[1], rcvd_msg.key[2], rcvd_msg.key[3]);
 
-        pthread_mutex_lock(&targ->mtx_get_job);
-        
-        targ->next_job_idx++;
-        // Should use ntohl but it doesnt work with it
-        targ->job_queue[targ->next_job_idx].file_idx = (rcvd_msg.file_number);
-        targ->job_queue[targ->next_job_idx].key_data = malloc(rcvd_msg.key_size*rcvd_msg.key_size);
-        memcpy(targ->job_queue[targ->next_job_idx].key_data, rcvd_msg.key, rcvd_msg.key_size*rcvd_msg.key_size);
-        targ->job_queue[targ->next_job_idx].key_size = (rcvd_msg.key_size);
-        
-        nxt_querry_id++;
-        targ->job_queue[targ->next_job_idx].querry_id = nxt_querry_id; 
-        uint32_t qidx = available_querry_indx[nxt_available_idx];
-        nxt_available_idx--;
-        DEBUG("Job has id %d and is at index %d", nxt_querry_id, qidx);
-        memcpy(querries[qidx]->clientaddr, (struct sockaddr*) &cltaddr, cltaddr_len);
-        querries[qidx]->querry_id = nxt_querry_id;
-        querries[qidx]->sfd = qsfd;
+            pthread_mutex_lock(&targ->mtx_get_job);
+            
+            targ->next_job_idx++;
+            // Should use ntohl but it doesnt work with it
+            targ->job_queue[targ->next_job_idx].file_idx = (rcvd_msg.file_number);
+            targ->job_queue[targ->next_job_idx].key_data = malloc(rcvd_msg.key_size*rcvd_msg.key_size);
+            memcpy(targ->job_queue[targ->next_job_idx].key_data, rcvd_msg.key, rcvd_msg.key_size*rcvd_msg.key_size);
+            targ->job_queue[targ->next_job_idx].key_size = (rcvd_msg.key_size);
+            
+            nxt_querry_id++;
+            targ->job_queue[targ->next_job_idx].querry_id = nxt_querry_id; 
+            uint32_t qidx = available_querry_indx[nxt_available_idx];
+            nxt_available_idx--;
+            DEBUG("Job has id %d and is at index %d", nxt_querry_id, qidx);
+            memcpy(querries[qidx]->clientaddr, (struct sockaddr*) &cltaddr, cltaddr_len);
+            querries[qidx]->querry_id = nxt_querry_id;
+            querries[qidx]->sfd = qsfd;
 
-        pthread_mutex_unlock(&targ->mtx_get_job);
-        
+            pthread_mutex_unlock(&targ->mtx_get_job);
+        }   
     }
 
 
@@ -219,7 +219,7 @@ void* thread_routine(void *varg){
             pthread_mutex_unlock(&arg->mtx_get_job);
             continue;
         }
-        DEBUG("Thread %d found a job", tid);
+        DEBUG("Thread %d found a job (%ld)", tid, job_data.querry_id);
         // Copy data to relieve lock before starting computation
         job_data = arg->job_queue[arg->next_job_idx];
         memcpy(tmp_file, &arg->files_data[job_data.file_idx*file_nbyte], file_nbyte);
@@ -257,7 +257,7 @@ void* thread_routine(void *varg){
 
         pthread_mutex_lock(&arg->mtx_finish_job);
 
-        DEBUG("Thread %d finished its job", tid);
+        DEBUG("Thread %d finished its job (%ld)", tid, job_data.querry_id);
 
         arg->next_rslt_idx++;
         int rslt_id = arg->next_rslt_idx;
@@ -265,8 +265,6 @@ void* thread_routine(void *varg){
         arg->result_queue[rslt_id].querry_id = job_data.querry_id; 
 
         pthread_mutex_unlock(&arg->mtx_finish_job);
-
-        sleep(1); // Usefull for debugging but should be removed when texting
     }
 
 }
