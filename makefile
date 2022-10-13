@@ -2,8 +2,8 @@ helper.o:
 	gcc src/helper.c -D _DEBUG -o bin/helper.o -c -g
 
 client: helper.o
-	gcc src/client.c -D _DEBUG -o bin/client.o -c -g
-	gcc -o client bin/client.o bin/helper.o -g
+	gcc -pthread src/client.c -D _DEBUG -o bin/client.o -c -g
+	gcc -pthread -o client bin/client.o bin/helper.o -g
 
 
 server: helper.o
