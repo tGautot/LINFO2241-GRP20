@@ -12,9 +12,16 @@
 #include <arpa/inet.h>
 #include <time.h>
 #include <pthread.h>
+#include <fcntl.h>
 
 #include "../header/helper.h"
 #include "../header/log.h"
+
+typedef struct {
+    struct sockaddr* clientaddr;
+    uint32_t querry_id;
+    int sfd;
+} pending_querry_t;
 
 /**
  * @brief Represents the job built from a querry
@@ -38,6 +45,7 @@ typedef struct{
  * Has the file (encrypted or not) and same job id as the query this data originated from
  */
 typedef struct{
+    uint8_t err;
     uint8_t* file;
     uint64_t querry_id;
 } thread_job_result_t;
@@ -64,11 +72,18 @@ typedef struct{
 } thread_arg_t;
 
 int create_and_bind_socket(struct sockaddr *listen_addr, socklen_t addrlen){
-    int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    int sf = fcntl(sockfd, F_GETFL);
+    // Mark socket as non-blocking for accept() calls 
+    fcntl(sockfd, F_SETFL, sf | O_NONBLOCK);
     int res = bind(sockfd, listen_addr, addrlen);
     if(res != 0){
         ERROR("Couldnt bind socket");
         return -1;
+    }
+    if ((listen(sockfd, 500)) != 0) {
+        ERROR("Listen failed");
+        exit(0);
     }
     return sockfd;
 }
@@ -83,27 +98,81 @@ int server_routine(int sockfd, thread_arg_t* targ){
 
     
     struct sockaddr_storage* addrstor = safe_malloc(sizeof(struct sockaddr_storage), __FILE__, __LINE__);
-    
+    struct sockaddr_in* rcvd_addr = safe_malloc(sizeof(struct sockaddr_in), __FILE__, __LINE__); 
+
     socklen_t addrstor_len = _SS_SIZE;
     uint32_t nw_in_len = sizeof(client_message_t);
     client_message_t rcvd_msg;
     server_message_t sent_msg;
-    uint32_t nxt_querry_id = 0;
 
+
+    uint32_t nxt_querry_id = 0;
+    uint32_t max_pending_querries = 64000; // Param;
+    uint32_t nxt_available_idx = max_pending_querries -1;
+    
+    // Top value (at index nxt_available_idx) of this hold index in querries array to put next received querry
+    uint32_t available_querry_indx[max_pending_querries]; 
+    
+    pending_querry_t* querries[max_pending_querries];
+    for(int i = 0; i < max_pending_querries; i++){
+        querries[i] = safe_malloc(sizeof(pending_querry_t), __FILE__, __LINE__);
+        querries[i]->querry_id = -1; // id -1 means not a valid querry
+        querries[i]->clientaddr = safe_malloc(sizeof(struct sockaddr_storage), __FILE__, __LINE__);;
+        available_querry_indx[i] = max_pending_querries - 1 - i;
+    }
+
+    DEBUG("Routine loop starting");
     while(true){
         sleep(1); // Usefull for debugging but should be removed
-        pfd.revents = 0;
-        poll(&pfd, 1, max_poll_ms);
-        if( !(pfd.revents & POLLIN) ) continue;
-        DEBUG("RECEIVED NETWORK MESSAGE");
-        nw_in_len = recvfrom(sockfd, (void*) &rcvd_msg, nw_in_len, 0, (struct sockaddr*) addrstor, &addrstor_len);
+        
+        // Send results
+        pthread_mutex_lock(&targ->mtx_finish_job);
+
+        if(targ->next_rslt_idx >= 0){
+            thread_job_result_t rslt = targ->result_queue[targ->next_rslt_idx];
+            server_message_t* tosend = safe_malloc(sizeof(server_message_t), __FILE__, __LINE__);
+            tosend->error_code = rslt.err;
+            tosend->file_size = targ->files_size;
+            memcpy(tosend->encrpt_file, rslt.file, targ->files_size * targ->files_size);
+            free(rslt.file);
+            uint32_t qidx = -1;
+            for(int i = 0; i < max_pending_querries; i++){
+                if(querries[i]->querry_id == rslt.querry_id){
+                    qidx = i;
+                    break;
+                }
+            }
+
+            targ->next_rslt_idx--;
+            nxt_available_idx++;
+            available_querry_indx[nxt_available_idx] = qidx;
+            if(qidx == -1){
+                ERROR("Could not find matching querry with id %ld in list of pending querries, dropping result", rslt.querry_id);
+            } else {
+                DEBUG("Sending response of job %ld (querry index %d)", rslt.querry_id, qidx);
+                send(querries[qidx]->sfd, tosend, sizeof(server_message_t), 0);
+            }
+        }
+
+        pthread_mutex_unlock(&targ->mtx_finish_job);
+
+        // Accept connection
+        struct sockaddr_in cltaddr;
+        socklen_t cltaddr_len;
+        int qsfd = accept(sockfd, (struct sockaddr*) &cltaddr, &cltaddr_len);
+        if(qsfd == -1) continue;
+
+        // Receive querry
+        // This is not very well done, easily ddosable
+        DEBUG("Received connection, waiting for message");
+        nw_in_len = recv(qsfd, (void*) &rcvd_msg, nw_in_len, 0);
 
         if(nw_in_len < 0){
             ERROR("Couldnt read query from network");
             return -1;
         }
 
-        DEBUG("Received querry for file %d with keysize %d", rcvd_msg.file_number, rcvd_msg.key_size);
+        DEBUG("Querry for file %d with keysize %d", rcvd_msg.file_number, rcvd_msg.key_size);
         if(rcvd_msg.key_size >= 4) DEBUG("Key starts with %u %u %u %u", rcvd_msg.key[0], rcvd_msg.key[1], rcvd_msg.key[2], rcvd_msg.key[3]);
 
         pthread_mutex_lock(&targ->mtx_get_job);
@@ -111,10 +180,18 @@ int server_routine(int sockfd, thread_arg_t* targ){
         targ->next_job_idx++;
         // Should use ntohl but it doesnt work with it
         targ->job_queue[targ->next_job_idx].file_idx = (rcvd_msg.file_number);
-        targ->job_queue[targ->next_job_idx].key_data = malloc(rcvd_msg.key_size);
+        targ->job_queue[targ->next_job_idx].key_data = malloc(rcvd_msg.key_size*rcvd_msg.key_size);
         memcpy(targ->job_queue[targ->next_job_idx].key_data, rcvd_msg.key, rcvd_msg.key_size*rcvd_msg.key_size);
         targ->job_queue[targ->next_job_idx].key_size = (rcvd_msg.key_size);
-        targ->job_queue[targ->next_job_idx].querry_id = nxt_querry_id++; // set then update
+        
+        nxt_querry_id++;
+        targ->job_queue[targ->next_job_idx].querry_id = nxt_querry_id; 
+        uint32_t qidx = available_querry_indx[nxt_available_idx];
+        nxt_available_idx--;
+        DEBUG("Job has id %d and is at index %d", nxt_querry_id, qidx);
+        memcpy(querries[qidx]->clientaddr, (struct sockaddr*) &cltaddr, cltaddr_len);
+        querries[qidx]->querry_id = nxt_querry_id;
+        querries[qidx]->sfd = qsfd;
 
         pthread_mutex_unlock(&targ->mtx_get_job);
         

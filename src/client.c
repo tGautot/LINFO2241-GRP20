@@ -20,10 +20,10 @@
 
 
 int create_and_connect_socket(struct sockaddr *receiver_addr, socklen_t addrlen){
-    int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     int res = connect(sockfd, receiver_addr, addrlen);
     if(res != 0){
-        ERROR("Couldnt connect socket");
+        ERROR("Couldnt connect socket %d, err: %s", sockfd, strerror(errno));
         return -1;
     }
     return sockfd;
