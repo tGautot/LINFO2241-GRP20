@@ -104,10 +104,7 @@ int server_routine(int sockfd, thread_arg_t* targ){
         }
 
         DEBUG("Received querry for file %d with keysize %d", rcvd_msg.file_number, rcvd_msg.key_size);
-        if(rcvd_msg.key_size == 1) DEBUG("Key is %u", rcvd_msg.key[0]);
-        if(rcvd_msg.key_size == 2) DEBUG("Key is %u %u", rcvd_msg.key[0], rcvd_msg.key[1]);
-        if(rcvd_msg.key_size == 3) DEBUG("Key is %u %u %u", rcvd_msg.key[0], rcvd_msg.key[1], rcvd_msg.key[3]);
-        if(rcvd_msg.key_size >= 4) DEBUG("Key starts with %u %u %u %u", rcvd_msg.key[0], rcvd_msg.key[1], rcvd_msg.key[3], rcvd_msg.key[4]);
+        if(rcvd_msg.key_size >= 4) DEBUG("Key starts with %u %u %u %u", rcvd_msg.key[0], rcvd_msg.key[1], rcvd_msg.key[2], rcvd_msg.key[3]);
 
         pthread_mutex_lock(&targ->mtx_get_job);
         
@@ -115,7 +112,7 @@ int server_routine(int sockfd, thread_arg_t* targ){
         // Should use ntohl but it doesnt work with it
         targ->job_queue[targ->next_job_idx].file_idx = (rcvd_msg.file_number);
         targ->job_queue[targ->next_job_idx].key_data = malloc(rcvd_msg.key_size);
-        memcpy(targ->job_queue[targ->next_job_idx].key_data, rcvd_msg.key, rcvd_msg.key_size);
+        memcpy(targ->job_queue[targ->next_job_idx].key_data, rcvd_msg.key, rcvd_msg.key_size*rcvd_msg.key_size);
         targ->job_queue[targ->next_job_idx].key_size = (rcvd_msg.key_size);
         targ->job_queue[targ->next_job_idx].querry_id = nxt_querry_id++; // set then update
 

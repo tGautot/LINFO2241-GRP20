@@ -81,12 +81,12 @@ int main(int argc, char **argv) {
 
     // Client is connected
 
-    struct client_message* message = malloc(sizeof(struct client_message)); 
+    struct client_message* message = malloc(sizeof(client_message_t)); 
+    srand(time(NULL));
     message->file_number = rand() % 1000;
     message->key_size = key_size;
 
     
-    srand(time(NULL));
     for (int i = 0; i < key_size*key_size; i++){
         message->key[i] = (uint8_t) rand();
     }
@@ -97,13 +97,16 @@ int main(int argc, char **argv) {
     // should use htonl but doesnt work with it
     message->file_number = (message->file_number);
     message->key_size = (message->key_size);
-    if (send(sockfd, message, sizeof(message), 0) < 0) {
-        printf("Unable to send message\n");
+    DEBUG("Sending %ld bytes through network", sizeof(client_message_t));
+    int err = send(sockfd, message, sizeof(client_message_t), 0);
+    if (err < 0) {
+        printf("Unable to send message %d\n", err);
         return -1;
     }
 
-    server_message_t* response = safe_malloc(sizeof(server_message_t), __FILE__, __LINE__);
+    server_message_t* response = malloc(sizeof(server_message_t));
     // Receive server's response
+    DEBUG("Waiting for response");
     int a = recv(sockfd, response, sizeof(response), 0);
     if (a < 0) {
         ERROR("Error while receiving the response %d", a);
