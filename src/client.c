@@ -179,6 +179,7 @@ int main(int argc, char **argv) {
     arg.receiver_port = receiver_port;
     DEBUG("1");
 
+    int64_t start = current_time_millis();
     for (int k = 0; k < n_request; k++) {
         printf("Connection %d\n",k);
         pthread_create(&threads[k], NULL, client_routine, &arg);
@@ -188,6 +189,8 @@ int main(int argc, char **argv) {
     for (int k = 0; k < n_request; k++) {
         pthread_join(threads[k],NULL);
     }
+    int64_t end = current_time_millis();
+    int64_t total_time = end-start;
 
     pthread_mutex_destroy(&lock);
 
@@ -201,6 +204,7 @@ int main(int argc, char **argv) {
     for (int i = 0; i < n_request; i++) {
         fprintf(data,"%ld\n",response_times[i]);
     }
+    fprintf(data,"%ld",total_time);
     fclose(data);
 
     free(threads);
