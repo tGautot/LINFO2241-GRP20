@@ -83,7 +83,6 @@ void* client_routine(void* thread_arg) {
     // Client is connected
 
     struct client_message* message = safe_malloc(sizeof(client_message_t), __FILE__, __LINE__); 
-    srand(time(NULL));
     message->file_number = rand() % 1000;
     message->key_size = key_size;
 
@@ -128,6 +127,8 @@ void* client_routine(void* thread_arg) {
 
 
 int main(int argc, char **argv) {
+    srand(time(NULL));
+
     int opt;
     int key_size = 128;
     double rate = 10.0;
