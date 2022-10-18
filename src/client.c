@@ -21,7 +21,7 @@
 pthread_t* threads;
 int idx = 0;
 pthread_mutex_t lock;
-double* response_times;
+int64_t* response_times;
 
 typedef struct {
     uint32_t key_size;
@@ -54,7 +54,7 @@ void* client_routine(void* thread_arg) {
     printf("%d\n",2);
     fflush(stdout);
 
-    double t1 = current_time_millis();
+    int64_t t1 = current_time_millis();
 
     arg_t* arg = (arg_t*) thread_arg;
 
@@ -113,7 +113,7 @@ void* client_routine(void* thread_arg) {
         ERROR("Error while receiving the response %d", a);
     }
 
-    double t2 = current_time_millis();
+    int64_t t2 = current_time_millis();
     pthread_mutex_lock(&lock);
     response_times[idx++] = t2-t1;
     pthread_mutex_unlock(&lock);
@@ -177,6 +177,7 @@ int main(int argc, char **argv) {
     arg.mystr = mystr;
     arg.receiver_ip = receiver_ip;
     arg.receiver_port = receiver_port;
+    DEBUG("1");
 
     for (int k = 0; k < n_request; k++) {
         printf("Connection %d\n",k);
@@ -189,6 +190,18 @@ int main(int argc, char **argv) {
     }
 
     pthread_mutex_destroy(&lock);
+
+    FILE* data;
+
+    data = fopen("data.txt","w");
+    if (data == NULL) {
+        printf("Cant open the file");
+        exit(1);
+    }
+    for (int i = 0; i < n_request; i++) {
+        fprintf(data,"%ld\n",response_times[i]);
+    }
+    fclose(data);
 
     free(threads);
     free(response_times);
