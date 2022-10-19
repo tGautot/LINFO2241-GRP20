@@ -74,7 +74,7 @@ void* thread_routine(void *varg){
         if(client_sfd < 0) continue;
         DEBUG("Thread %d accpected connection", tid);
         recv(client_sfd, job_msg, sizeof(client_message_t), 0);
-        DEBUG("Thead %d is starting a job", tid);
+        DEBUG("Thead %d is starting a job at time %ld", tid, current_time_millis());
         int ks = job_msg->key_size;
         tmp_file = &arg->files_data[job_msg->file_number * file_nbyte];
 
@@ -106,7 +106,7 @@ void* thread_routine(void *varg){
         rslt_msg->error_code = 0; // TODO
         rslt_msg->file_size = arg->files_size;
         memcpy(rslt_msg->encrpt_file, tmp_file, file_nbyte);
-        DEBUG("Thead %d finished a job", tid);
+        DEBUG("Thead %d finished a job at time %ld", tid, current_time_millis());
         send(client_sfd, rslt_msg, sizeof(server_message_t), 0);
         DEBUG("Thead %d sent response", tid);
         close(client_sfd);
