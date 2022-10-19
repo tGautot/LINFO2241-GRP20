@@ -109,7 +109,13 @@ void* thread_routine(void *varg){
         DEBUG("Thead %d finished a job", tid);
         send(client_sfd, rslt_msg, sizeof(server_message_t), 0);
         DEBUG("Thead %d sent response", tid);
+        close(client_sfd);
     }
+    free(sendmsg);
+    free(recvmsg);
+    free(sa);
+    free(tmp_file);
+    free(tmp_result);
 
 }
 
