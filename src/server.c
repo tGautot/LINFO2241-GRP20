@@ -80,7 +80,11 @@ void* thread_routine(void *varg){
 
         // Do encryption
         if(file_size % ks != 0){
-            ERROR("Invalid key size %d stopping job", ks);
+            rslt_msg->error_code = 0;
+            rslt_msg->file_size = 0;
+            memset(rslt_msg->encrpt_file, 0, file_nbyte);
+            send(client_sfd, rslt_msg, sizeof(server_message_t), 0);
+            close(client_sfd);
             continue;
         }
         int b = file_size / ks;
@@ -184,6 +188,9 @@ int main(int argc, char **argv) {
     for(int i = 0; i < nthread; i++){
         pthread_join(threads[i], NULL);
     }
+    free(files_data);
+    free(targ);
+    free(listen_addr);
 
     return EXIT_SUCCESS;
 }
