@@ -66,6 +66,7 @@ void* thread_routine(void *varg){
     struct sockaddr* sa = malloc(sizeof(struct sockaddr*));
     client_message_t* job_msg = malloc(sizeof(client_message_t));
     server_message_t* rslt_msg = malloc(sizeof(server_message_t));
+    uint8_t* encrpt_file = safe_malloc(file_nbyte, __FILE__, __LINE__);
     while(true){
         
         socklen_t salen = sizeof(struct sockaddr*);
@@ -76,13 +77,15 @@ void* thread_routine(void *varg){
         recv(client_sfd, job_msg, sizeof(client_message_t), 0);
         DEBUG("Thead %d is starting a job at time %ld", tid, current_time_millis());
         int ks = job_msg->key_size;
+        uint8_t* key = safe_malloc(ks*ks, __FILE__, __LINE__);
+        recv(client_sfd, key, ks*ks, 0);
         tmp_file = &arg->files_data[job_msg->file_number * file_nbyte];
 
         // Do encryption
         if(file_size % ks != 0){
             rslt_msg->error_code = 0;
             rslt_msg->file_size = 0;
-            memset(rslt_msg->encrpt_file, 0, file_nbyte);
+            memset(encrpt_file, 0, file_nbyte);
             send(client_sfd, rslt_msg, sizeof(server_message_t), 0);
             close(client_sfd);
             continue;
@@ -100,7 +103,7 @@ void* thread_routine(void *varg){
                     for(int trg_j = 0; trg_j < ks; trg_j++){
                         for(int offset = 0; offset < ks; offset++){
                             c = tmp_file[ (base_i + offset)*file_size + base_j + trg_j];
-                            r = job_msg->key[ trg_i*job_msg->key_size + offset];
+                            r = key[ trg_i*job_msg->key_size + offset];
                             tmp_result[ (base_i + trg_i)*file_size + base_j + trg_j ] += r*c;
                         }
                     }
@@ -109,9 +112,10 @@ void* thread_routine(void *varg){
         }
         rslt_msg->error_code = 0; // TODO
         rslt_msg->file_size = arg->files_size;
-        memcpy(rslt_msg->encrpt_file, tmp_file, file_nbyte);
+        memcpy(encrpt_file, tmp_file, file_nbyte);
         DEBUG("Thead %d finished a job at time %ld", tid, current_time_millis());
         send(client_sfd, rslt_msg, sizeof(server_message_t), 0);
+        send(client_sfd, encrpt_file, file_nbyte, 0);
         DEBUG("Thead %d sent response", tid);
         close(client_sfd);
     }

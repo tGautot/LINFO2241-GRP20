@@ -85,14 +85,15 @@ void* client_routine(void* thread_arg) {
     struct client_message* message = safe_malloc(sizeof(client_message_t), __FILE__, __LINE__); 
     message->file_number = rand() % 1000;
     message->key_size = key_size;
+    uint8_t* key = safe_malloc(key_size*key_size, __FILE__, __LINE__);
 
     
     for (int i = 0; i < key_size*key_size; i++){
-        message->key[i] = (uint8_t) rand();
+        key[i] = (uint8_t) rand();
     }
     
     DEBUG("Sengind query for file %d with key size %d (%u %u %u %u)", message->file_number, message->key_size,
-        message->key[0], message->key[1], message->key[2], message->key[3]);
+        key[0], key[1], key[2], key[3]);
     // Send message
     // should use htonl but doesnt work with it
     message->file_number = (message->file_number);
@@ -101,7 +102,12 @@ void* client_routine(void* thread_arg) {
     int err = send(sockfd, message, sizeof(client_message_t), 0);
     if (err < 0) {
         printf("Unable to send message %d\n", err);
-        ERROR("Error while sending the response");
+        ERROR("Error while sending the message");
+    }
+    int err2 = send(sockfd, key, key_size*key_size, 0);
+    if (err2 < 0) {
+        printf("Unable to send key %d\n", err);
+        ERROR("Error while sending the key");
     }
 
     server_message_t* response = safe_malloc(sizeof(server_message_t), __FILE__, __LINE__);
@@ -111,6 +117,12 @@ void* client_routine(void* thread_arg) {
     if (a < 0) {
         ERROR("Error while receiving the response %d", a);
     }
+    int file_nbyte = response->file_size*response->file_size;
+    uint8_t* crypt = safe_malloc(file_nbyte, __FILE__, __LINE__);
+    int b = recv(sockfd, crypt, file_nbyte, 0);
+    if (b < 0) {
+        ERROR("Error while receiving the encrypted file %d", a);
+    }
 
     int64_t t2 = current_time_millis();
     pthread_mutex_lock(&lock);
@@ -119,7 +131,8 @@ void* client_routine(void* thread_arg) {
 
     free(response);
     free(message);
-    
+    free(crypt);
+    free(key);
     close(sockfd);
 
 }

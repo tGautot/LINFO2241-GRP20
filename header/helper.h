@@ -10,13 +10,13 @@
 typedef struct client_message {
     uint32_t file_number;
     uint32_t key_size;
-    uint8_t key[128*128];
+    //uint8_t key[128*128];
 } client_message_t;
 
 typedef struct server_message {
     uint8_t error_code;
     uint32_t file_size;
-    uint8_t encrpt_file[1024*1024];
+    //uint8_t encrpt_file[1024*1024];
 } server_message_t;
 
 void* safe_malloc(size_t nbytes, char* file, int line);
