@@ -89,14 +89,13 @@ void* server_routine(int sock_desc, uint32_t file_size){
 
                 int aline = (vstart + ln) * file_size + hstart;
                 for (int col = 0; col < key_size; col++) {
+                    uint32_t r = key[ln*key_size + col];
+                    int vline = (vstart+col) * file_size + hstart;
 
-                    int tot = 0;
                     for (int k = 0; k < key_size; k++) {
-                        count++;
-                        int vline = (vstart+k) * file_size + hstart;
-                        tot += key[ln*key_size + k] * file[vline + col];
+
+                        crypted[aline + k] += file[vline + k]*r;
                     }
-                    crypted[aline + col] = tot;
                 }
             }
         }

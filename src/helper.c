@@ -28,12 +28,19 @@ uint64_t current_time_millis(){
     return millis;
 }
 
+uint64_t current_time_micro(){
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    uint64_t millis = tv.tv_sec*1000 + tv.tv_usec/1000;
+    return millis;
+}
+
 struct sockaddr_in* build_ipv4_address(char* ip, uint16_t port){
     struct sockaddr_in *addr = malloc(sizeof(struct sockaddr_in));
     memset(addr, 0, sizeof(struct sockaddr_in));
     addr->sin_port = htons(port);
     addr->sin_family = AF_INET;
-    addr->sin_addr.s_addr = inet_addr(ip);
+    addr->sin_addr.s_addr = INADDR_ANY; //inet_addr(ip);
     return addr;
 }
 

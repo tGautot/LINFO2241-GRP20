@@ -2,6 +2,12 @@ import numpy as np
 import matplotlib.pyplot as plt 
   
 
+def autolabel(rects):
+    for rect in rects:
+        h = rect.get_height()
+        ax.text(rect.get_x()+rect.get_width()/2., 1.05*h, '%d'%int(h),
+                ha='center', va='bottom')
+
 datas = [[0,0],
          [0,0],
          [0,0],
@@ -32,15 +38,21 @@ for i in range(4):
         m1[i].append((datas[i][0][0][j] + (j*1000/r))/j)
         m2[i].append((datas[i][1][0][j] + (j*1000/r))/j)
 
-#print(m1)
+print(t1)
+print(t2)
 
 err1 = [np.std(m1[i]) for i in range(4)]
 err2 = [np.std(m2[i]) for i in range(4)]
 
-print(np.diff(X_axis))
+#print(np.diff(X_axis))
 
-plt.bar(X_axis - 0.2, t1, 0.4, label = '1 thread - 1 core')
-plt.bar(X_axis + 0.2, t2, 0.4, label = '4 threads - 4 cores')
+fig = plt.figure()
+ax = fig.add_subplot(111)
+
+r1 = ax.bar(X_axis - 0.2, t1, 0.4, label = '1 thread - 1 core')
+r2 = ax.bar(X_axis + 0.2, t2, 0.4, label = '4 threads - 4 cores')
+autolabel(r1)
+autolabel(r2)
 plt.yscale('log')
 plt.xticks(X_axis, X)
 plt.xlabel("Key Size - File Size")
@@ -48,3 +60,4 @@ plt.ylabel("Avg server process time (ms)")
 plt.title("Server process time")
 plt.legend()
 plt.show()
+

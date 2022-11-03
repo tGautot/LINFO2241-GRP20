@@ -43,7 +43,13 @@ int create_and_connect_socket(struct sockaddr *receiver_addr, socklen_t addrlen)
 }
 
 
+
+
+
+
 void* client_routine(void* thread_arg) {
+    DEBUG("FINISHED PARSING");
+    
 
     int64_t t1 = current_time_millis();
 
@@ -62,7 +68,6 @@ void* client_routine(void* thread_arg) {
     int sockfd;
     sockfd = create_and_connect_socket((struct sockaddr*) receiver_addr, receiver_addrlen);
     
-
     if(sockfd < 0){
         ERROR("Couldn't connect to address, aborting send");
         //return -2;
@@ -70,67 +75,56 @@ void* client_routine(void* thread_arg) {
 
     // Client is connected
 
-    unsigned file_number = (rand() % 1000);
+    struct client_message* message = safe_malloc(sizeof(client_message_t), __FILE__, __LINE__); 
+    message->file_number = rand() % 1000;
+    message->key_size = key_size;
+    uint8_t* key = safe_malloc(key_size*key_size, __FILE__, __LINE__);
 
-    uint32_t* key = safe_malloc(key_size*key_size*sizeof(uint32_t), __FILE__, __LINE__);
     
     for (int i = 0; i < key_size*key_size; i++){
-        key[i] = (uint32_t) rand();
+        key[i] = (uint8_t) rand();
     }
     
-    DEBUG("Sendind query for file %d with key size %d (%u %u %u %u)", file_number, key_size,
+    DEBUG("Sengind query for file %d with key size %d (%u %u %u %u)", message->file_number, message->key_size,
         key[0], key[1], key[2], key[3]);
     // Send message
     // should use htonl but doesnt work with it
-    
-    
-    int err = send(sockfd, &file_number, 4, 0);
+    message->file_number = (message->file_number);
+    message->key_size = (message->key_size);
+    DEBUG("Sending %ld bytes through network", sizeof(client_message_t));
+    int err = send(sockfd, message, sizeof(client_message_t), 0);
     if (err < 0) {
         //printf("Unable to send message %d\n", err);
-        ERROR("Error while sending the file number");
+        ERROR("Error while sending the message");
     }
-
-    int revkey = htonl(key_size);
-    int err2 = send(sockfd, &revkey, 4, 0);
+    int err2 = send(sockfd, key, key_size*key_size, 0);
     if (err2 < 0) {
         //printf("Unable to send key %d\n", err);
-        ERROR("Error while sending the key size");
-    }
-    
-    int err3 = send(sockfd, key, sizeof(uint32_t)*key_size*key_size, 0);
-    if (err3 < 0) 
         ERROR("Error while sending the key");
+    }
 
-
+    server_message_t* response = safe_malloc(sizeof(server_message_t), __FILE__, __LINE__);
     // Receive server's response
-    unsigned char error;
     DEBUG("Waiting for response");
-    int a = recv(sockfd, &error, 1, 0);
+    int a = recv(sockfd, response, sizeof(response), 0);
     if (a < 0) {
-        ERROR("Error while receiving the error code %d", a);
+        ERROR("Error while receiving the response %d", a);
     }
-    unsigned file_size;
-    recv(sockfd, &file_size, 4, 0);
-    
-
-    if (file_size > 0) {
-        long int left = file_size;
-        char buffer[65536];
-        while (left > 0) {
-            unsigned b = left;
-            if (b > 65536)
-                b = 65536;
-            left -= recv(sockfd, &buffer, b, 0);
-        }
+    int file_nbyte = response->file_size*response->file_size;
+    uint8_t* crypt = safe_malloc(file_nbyte, __FILE__, __LINE__);
+    int b = recv(sockfd, crypt, file_nbyte, 0);
+    if (b < 0) {
+        ERROR("Error while receiving the encrypted file %d", a);
     }
-
 
     int64_t t2 = current_time_millis();
     pthread_mutex_lock(&lock);
     response_times[idx++] = t2-t1;
     pthread_mutex_unlock(&lock);
 
-    
+    free(response);
+    free(message);
+    free(crypt);
     free(key);
     close(sockfd);
 
@@ -142,9 +136,10 @@ int main(int argc, char **argv) {
     srand(time(NULL));
 
     int opt;
-    int key_size;
-    double rate;
-    int time_interval;
+    int key_size = 128;
+    double rate = 10.0;
+    int time_interval = 10;
+    int n_request = rate*time_interval;
 
     while ((opt = getopt(argc, argv, "k:r:t:")) != -1) {
         //DEBUG("New option %c val %s", opt, optarg);
@@ -160,8 +155,6 @@ int main(int argc, char **argv) {
                 break;
         }
     }
-    int n_request = rate*time_interval;
-
 
     if (pthread_mutex_init(&lock, NULL) != 0) {
         //printf("\n mutex init failed\n");
@@ -196,13 +189,9 @@ int main(int argc, char **argv) {
         usleep((1.0/rate)*1000000);
     }
 
-
     for (int k = 0; k < n_request; k++) {
         pthread_join(threads[k],NULL);
     }
-
-    DEBUG("FINISHED CLIENT");
-
     int64_t end = current_time_millis();
     int64_t total_time = end-start;
 
