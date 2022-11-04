@@ -13,6 +13,11 @@ server: helper.o
 	# gcc -pthread src/server.c -o bin/server.o -c 
 	gcc -pthread -o server bin/server.o bin/helper.o 
 
+server-optim: helper.o
+	gcc -pthread src/server-optim.c -D _DEBUG -o bin/server-optim.o -c -mno-sse2 -mno-avx -mno-avx2 -mno-avx512f -fno-unroll-loops -fno-tree-vectorize -O2 
+	# gcc -pthread src/server-optim.c -o bin/server-optim.o -c 
+	gcc -pthread -o server-optim bin/server-optim.o bin/helper.o 
+
 clean:
 	rm -rf bin
 	rm client

@@ -111,18 +111,25 @@ void* client_routine(void* thread_arg) {
     }
     unsigned file_size;
     recv(sockfd, &file_size, 4, 0);
-    
+    file_size = ntohl(file_size);
 
+    DEBUG("file_size = %d",file_size);
+    
+    /*
     if (file_size > 0) {
+        DEBUG("0");
+
         long int left = file_size;
         char buffer[65536];
         while (left > 0) {
+            DEBUG("1");
+
             unsigned b = left;
             if (b > 65536)
                 b = 65536;
             left -= recv(sockfd, &buffer, b, 0);
         }
-    }
+    }*/
 
 
     int64_t t2 = current_time_millis();
@@ -133,6 +140,7 @@ void* client_routine(void* thread_arg) {
     
     free(key);
     close(sockfd);
+
 
 }
 

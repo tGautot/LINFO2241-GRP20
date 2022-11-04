@@ -65,6 +65,8 @@ void* server_routine(int sock_desc, uint32_t file_size){
     tread = recv(sockfd, &key_size, 4, 0);
     key_size = ntohl(key_size); // without, do not work
 
+    DEBUG("key_size = %d\n",key_size);
+
     uint32_t key[key_size*key_size];
 
     unsigned tot = key_size*key_size*sizeof(uint32_t);
@@ -77,7 +79,7 @@ void* server_routine(int sock_desc, uint32_t file_size){
     int nr = file_size / key_size;
 
     uint32_t* file = files_data[file_number % 1000];
-    uint32_t* crypted = safe_malloc(file_size*file_size*sizeof(uint32_t*), __FILE__, __LINE__);
+    uint32_t* crypted = safe_malloc(file_size*file_size*sizeof(uint32_t), __FILE__, __LINE__);
     long count = 0;
     
     for (int i = 0; i < nr; i++) {
@@ -105,10 +107,12 @@ void* server_routine(int sock_desc, uint32_t file_size){
     uint8_t error = 0;
     send(sockfd, &error, 1, MSG_NOSIGNAL);
     unsigned sz = htonl(file_size*file_size*sizeof(uint32_t));
+    //unsigned sz = (file_size*file_size*sizeof(uint32_t));
+    DEBUG("file_size = %d\n",sz);
     send(sockfd, &sz, 4, MSG_NOSIGNAL);
     send(sockfd, crypted, sz, MSG_NOSIGNAL);
 
-    
+    //close(sockfd);
 
 }
 
@@ -118,11 +122,15 @@ int main(int argc, char **argv) {
     int opt;
 
     // default params
+    int nthread = 1;
     uint32_t files_size = 1024;
     uint16_t listen_port = (uint16_t) 2241; 
 
-    while ((opt = getopt(argc, argv, "s:p:")) != -1) {
+    while ((opt = getopt(argc, argv, "j:s:p:")) != -1) {
         switch (opt) {
+        case 'j':
+            nthread = atoi(optarg);
+            break;
         case 's':
             files_size = atoi(optarg);
             break;
@@ -139,7 +147,7 @@ int main(int argc, char **argv) {
     // GENERATE FILES -------------------------
     files_data = safe_malloc(1000*sizeof(uint32_t*), __FILE__, __LINE__);
     for (int i = 0; i < 1000; i++)
-        files_data[i] = safe_malloc(files_size*files_size*sizeof(uint32_t*), __FILE__, __LINE__);
+        files_data[i] = safe_malloc(files_size*files_size*sizeof(uint32_t), __FILE__, __LINE__);
 
     
 
@@ -150,7 +158,6 @@ int main(int argc, char **argv) {
     socklen_t listen_addrlen = sizeof (struct sockaddr_in);
 
     int sockfd = create_and_bind_socket((struct sockaddr*) listen_addr, listen_addrlen);
-    free(listen_addr);
 
     if(sockfd == -1){
         ERROR("Closing receiver, port is probably in use");
@@ -163,7 +170,8 @@ int main(int argc, char **argv) {
         server_routine(client_sock, files_size);
     }
     
-    
+    for (int i = 0; i < 1000; i++)
+        free(files_data[i]);
     free(files_data);
     
     free(listen_addr);

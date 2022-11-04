@@ -119,11 +119,15 @@ int main(int argc, char **argv) {
     int opt;
 
     // default params
+    int nthread = 1;
     uint32_t files_size = 1024;
     uint16_t listen_port = (uint16_t) 2241; 
 
-    while ((opt = getopt(argc, argv, "s:p:")) != -1) {
+    while ((opt = getopt(argc, argv, "j:s:p:")) != -1) {
         switch (opt) {
+        case 'j':
+            nthread = atoi(optarg);
+            break;
         case 's':
             files_size = atoi(optarg);
             break;
