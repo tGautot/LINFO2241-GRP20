@@ -105,11 +105,13 @@ void* server_routine(int sock_desc, uint32_t file_size){
 
     uint8_t error = 0;
     send(sockfd, &error, 1, MSG_NOSIGNAL);
-    unsigned sz = htonl(file_size*file_size*sizeof(uint32_t));
-    send(sockfd, &sz, 4, MSG_NOSIGNAL);
+    unsigned sz = file_size*file_size*sizeof(uint32_t);
+    uint32_t htonlsz = htonl(sz);
+    send(sockfd, &htonlsz, 4, MSG_NOSIGNAL);
     send(sockfd, crypted, sz, MSG_NOSIGNAL);
 
-    
+    free(crypted);
+    close(sockfd);
 
 }
 
@@ -145,6 +147,8 @@ int main(int argc, char **argv) {
     files_data = safe_malloc(1000*sizeof(uint32_t*), __FILE__, __LINE__);
     for (int i = 0; i < 1000; i++)
         files_data[i] = safe_malloc(files_size*files_size*sizeof(uint32_t*), __FILE__, __LINE__);
+    for (int i = 0; i < files_size*files_size; i++)
+        files_data[0][i] = i;
 
     
 

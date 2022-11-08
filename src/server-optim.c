@@ -21,20 +21,6 @@ uint32_t** files_data;
 
 
 
-/**
- * @brief Object passed to worker threads
- * 
- * Holds all the data necessary for threads to work
- * The max amount of jobs that can be stored at any moment
- * The index in the job queue qhere the next job that needs to be done can be found
- * The list of jobs
- * The files data
- */
-typedef struct{
-    uint8_t* files_data;
-    uint32_t files_size;
-    int sockfd;
-} thread_arg_t;
 
 int create_and_bind_socket(struct sockaddr *listen_addr, socklen_t addrlen){
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -55,17 +41,17 @@ int create_and_bind_socket(struct sockaddr *listen_addr, socklen_t addrlen){
     return sockfd;
 }
 
-void* server_routine(int sock_desc, uint32_t file_size){
+void* server_routine(int sockfd, uint32_t file_size){
     //thread_arg_t* arg = (thread_arg_t*) varg;
-    int sockfd = (int) sock_desc;
+    
     unsigned file_number;
     unsigned key_size;
     int tread = recv(sockfd,&file_number, 4, 0);
-
+    file_number = ntohl(file_number);
     tread = recv(sockfd, &key_size, 4, 0);
     key_size = ntohl(key_size); // without, do not work
 
-    DEBUG("key_size = %d\n",key_size);
+    DEBUG("key_size = %d, file_number = %d\n",key_size, file_number);
 
     uint32_t key[key_size*key_size];
 
@@ -94,9 +80,16 @@ void* server_routine(int sock_desc, uint32_t file_size){
                     uint32_t r = key[ln*key_size + col];
                     int vline = (vstart+col) * file_size + hstart;
 
-                    for (int k = 0; k < key_size; k++) {
+                    for (int k = 0; k < key_size; k+=8) {
 
                         crypted[aline + k] += file[vline + k]*r;
+                        crypted[aline + k+1] += file[vline + k+1]*r;
+                        crypted[aline + k+2] += file[vline + k+2]*r;
+                        crypted[aline + k+3] += file[vline + k+3]*r;
+                        crypted[aline + k+4] += file[vline + k+4]*r;
+                        crypted[aline + k+5] += file[vline + k+5]*r;
+                        crypted[aline + k+6] += file[vline + k+6]*r;
+                        crypted[aline + k+7] += file[vline + k+7]*r;
                     }
                 }
             }
@@ -106,13 +99,14 @@ void* server_routine(int sock_desc, uint32_t file_size){
 
     uint8_t error = 0;
     send(sockfd, &error, 1, MSG_NOSIGNAL);
-    unsigned sz = htonl(file_size*file_size*sizeof(uint32_t));
+    uint32_t sz = file_size*file_size*sizeof(uint32_t);
     //unsigned sz = (file_size*file_size*sizeof(uint32_t));
+    uint32_t ntohlsz = ntohl(sz);
+    send(sockfd, &ntohlsz, 4, MSG_NOSIGNAL);
     DEBUG("file_size = %d\n",sz);
-    send(sockfd, &sz, 4, MSG_NOSIGNAL);
     send(sockfd, crypted, sz, MSG_NOSIGNAL);
-
-    //close(sockfd);
+    free(crypted);
+    close(sockfd);
 
 }
 
@@ -148,7 +142,8 @@ int main(int argc, char **argv) {
     files_data = safe_malloc(1000*sizeof(uint32_t*), __FILE__, __LINE__);
     for (int i = 0; i < 1000; i++)
         files_data[i] = safe_malloc(files_size*files_size*sizeof(uint32_t), __FILE__, __LINE__);
-
+    for (int i = 0; i < files_size*files_size; i++)
+        files_data[0][i] = i;
     
 
     // SETUP SOCKET --------------------------
