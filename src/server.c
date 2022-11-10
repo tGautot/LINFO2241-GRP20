@@ -18,23 +18,9 @@
 #include "../header/log.h"
 
 uint32_t** files_data;
+uint32_t key[128*128];
+uint32_t crypted[1024*1024];
 
-
-
-/**
- * @brief Object passed to worker threads
- * 
- * Holds all the data necessary for threads to work
- * The max amount of jobs that can be stored at any moment
- * The index in the job queue qhere the next job that needs to be done can be found
- * The list of jobs
- * The files data
- */
-typedef struct{
-    uint8_t* files_data;
-    uint32_t files_size;
-    int sockfd;
-} thread_arg_t;
 
 int create_and_bind_socket(struct sockaddr *listen_addr, socklen_t addrlen){
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -55,17 +41,18 @@ int create_and_bind_socket(struct sockaddr *listen_addr, socklen_t addrlen){
     return sockfd;
 }
 
-void* server_routine(int sock_desc, uint32_t file_size){
-    //thread_arg_t* arg = (thread_arg_t*) varg;
-    int sockfd = (int) sock_desc;
+void* server_routine(int sockfd, uint32_t file_size){
+    
     unsigned file_number;
-    unsigned key_size;
     int tread = recv(sockfd,&file_number, 4, 0);
+    file_number = ntohl(file_number);
 
+    unsigned key_size;
     tread = recv(sockfd, &key_size, 4, 0);
     key_size = ntohl(key_size); // without, do not work
 
-    uint32_t key[key_size*key_size];
+    //DEBUG("key_size = %d, file_number = %d\n",key_size, file_number);
+
 
     unsigned tot = key_size*key_size*sizeof(uint32_t);
     unsigned done = 0;
@@ -74,11 +61,9 @@ void* server_routine(int sock_desc, uint32_t file_size){
         done += tread;
     }
     
-    int nr = file_size / key_size;
 
     uint32_t* file = files_data[file_number % 1000];
-    uint32_t* crypted = safe_malloc(file_size*file_size*sizeof(uint32_t*), __FILE__, __LINE__);
-    long count = 0;
+    int nr = file_size / key_size;
     
     for (int i = 0; i < nr; i++) {
         int vstart = i * key_size;
@@ -92,7 +77,6 @@ void* server_routine(int sock_desc, uint32_t file_size){
 
                     int tot = 0;
                     for (int k = 0; k < key_size; k++) {
-                        count++;
                         int vline = (vstart+k) * file_size + hstart;
                         tot += key[ln*key_size + k] * file[vline + col];
                     }
@@ -101,16 +85,16 @@ void* server_routine(int sock_desc, uint32_t file_size){
             }
         }
     }
-    //printf("count = %ld\n",count);
 
     uint8_t error = 0;
     send(sockfd, &error, 1, MSG_NOSIGNAL);
-    unsigned sz = file_size*file_size*sizeof(uint32_t);
+
+    uint32_t sz = file_size*file_size*sizeof(uint32_t);
     uint32_t htonlsz = htonl(sz);
     send(sockfd, &htonlsz, 4, MSG_NOSIGNAL);
+    //DEBUG("file_size = %d\n",sz);
     send(sockfd, crypted, sz, MSG_NOSIGNAL);
-
-    free(crypted);
+    //free(crypted);
     close(sockfd);
 
 }
@@ -146,10 +130,10 @@ int main(int argc, char **argv) {
     // GENERATE FILES -------------------------
     files_data = safe_malloc(1000*sizeof(uint32_t*), __FILE__, __LINE__);
     for (int i = 0; i < 1000; i++)
-        files_data[i] = safe_malloc(files_size*files_size*sizeof(uint32_t*), __FILE__, __LINE__);
+        files_data[i] = safe_malloc(files_size*files_size*sizeof(uint32_t), __FILE__, __LINE__);
+
     for (int i = 0; i < files_size*files_size; i++)
         files_data[0][i] = i;
-
     
 
     // SETUP SOCKET --------------------------
@@ -159,7 +143,6 @@ int main(int argc, char **argv) {
     socklen_t listen_addrlen = sizeof (struct sockaddr_in);
 
     int sockfd = create_and_bind_socket((struct sockaddr*) listen_addr, listen_addrlen);
-    free(listen_addr);
 
     if(sockfd == -1){
         ERROR("Closing receiver, port is probably in use");
@@ -172,7 +155,8 @@ int main(int argc, char **argv) {
         server_routine(client_sock, files_size);
     }
     
-    
+    for (int i = 0; i < 1000; i++)
+        free(files_data[i]);
     free(files_data);
     
     free(listen_addr);

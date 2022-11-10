@@ -222,10 +222,15 @@ int main(int argc, char **argv) {
         //printf("Cant open the file");
         exit(1);
     }
-    for (int i = 0; i < n_request; i++) {
+    double somme = 0;
+    int i;
+    for (i = 0; i < n_request; i++) {
         fprintf(data,"%ld\n",response_times[i]);
+        somme += response_times[i];
     }
-    fprintf(data,"%ld",total_time);
+
+    fprintf(data,"%f\n",somme/(double)i);
+    //fprintf(data,"%ld",total_time);
     fclose(data);
 
     free(threads);

@@ -17,9 +17,13 @@
 #include "../header/helper.h"
 #include "../header/log.h"
 
+//#define LOOPUNROLL 10
+
+
+
 uint32_t** files_data;
-
-
+uint32_t key[128*128];
+uint32_t crypted[1024*1024];
 
 
 int create_and_bind_socket(struct sockaddr *listen_addr, socklen_t addrlen){
@@ -42,18 +46,17 @@ int create_and_bind_socket(struct sockaddr *listen_addr, socklen_t addrlen){
 }
 
 void* server_routine(int sockfd, uint32_t file_size){
-    //thread_arg_t* arg = (thread_arg_t*) varg;
     
     unsigned file_number;
-    unsigned key_size;
     int tread = recv(sockfd,&file_number, 4, 0);
     file_number = ntohl(file_number);
+
+    unsigned key_size;
     tread = recv(sockfd, &key_size, 4, 0);
     key_size = ntohl(key_size); // without, do not work
 
-    DEBUG("key_size = %d, file_number = %d\n",key_size, file_number);
+    //DEBUG("key_size = %d, file_number = %d\n",key_size, file_number);
 
-    uint32_t key[key_size*key_size];
 
     unsigned tot = key_size*key_size*sizeof(uint32_t);
     unsigned done = 0;
@@ -62,11 +65,9 @@ void* server_routine(int sockfd, uint32_t file_size){
         done += tread;
     }
     
-    int nr = file_size / key_size;
 
     uint32_t* file = files_data[file_number % 1000];
-    uint32_t* crypted = safe_malloc(file_size*file_size*sizeof(uint32_t), __FILE__, __LINE__);
-    long count = 0;
+    int nr = file_size / key_size;
     
     for (int i = 0; i < nr; i++) {
         int vstart = i * key_size;
@@ -77,9 +78,19 @@ void* server_routine(int sockfd, uint32_t file_size){
 
                 int aline = (vstart + ln) * file_size + hstart;
                 for (int col = 0; col < key_size; col++) {
+
+#if OPTIM==0
+
+                    int tot = 0;
+                    for (int k = 0; k < key_size; k++) {
+                        int vline = (vstart+k) * file_size + hstart;
+                        tot += key[ln*key_size + k] * file[vline + col];
+                    }
+                    crypted[aline + col] = tot;
+
+#elif OPTIM==1
                     uint32_t r = key[ln*key_size + col];
                     int vline = (vstart+col) * file_size + hstart;
-
                     for (int k = 0; k < key_size; k+=8) {
 
                         crypted[aline + k] += file[vline + k]*r;
@@ -91,21 +102,30 @@ void* server_routine(int sockfd, uint32_t file_size){
                         crypted[aline + k+6] += file[vline + k+6]*r;
                         crypted[aline + k+7] += file[vline + k+7]*r;
                     }
+#else
+
+                    uint32_t r = key[ln*key_size + col];
+                    int vline = (vstart+col) * file_size + hstart;
+                    for (int k = 0; k < key_size; k++) {
+
+                        crypted[aline + k] += file[vline + k]*r;
+                    }
+#endif
+                    
                 }
             }
         }
     }
-    //printf("count = %ld\n",count);
 
     uint8_t error = 0;
     send(sockfd, &error, 1, MSG_NOSIGNAL);
+
     uint32_t sz = file_size*file_size*sizeof(uint32_t);
-    //unsigned sz = (file_size*file_size*sizeof(uint32_t));
-    uint32_t ntohlsz = ntohl(sz);
-    send(sockfd, &ntohlsz, 4, MSG_NOSIGNAL);
-    DEBUG("file_size = %d\n",sz);
+    uint32_t htonlsz = htonl(sz);
+    send(sockfd, &htonlsz, 4, MSG_NOSIGNAL);
+    //DEBUG("file_size = %d\n",sz);
     send(sockfd, crypted, sz, MSG_NOSIGNAL);
-    free(crypted);
+    //free(crypted);
     close(sockfd);
 
 }
@@ -142,6 +162,7 @@ int main(int argc, char **argv) {
     files_data = safe_malloc(1000*sizeof(uint32_t*), __FILE__, __LINE__);
     for (int i = 0; i < 1000; i++)
         files_data[i] = safe_malloc(files_size*files_size*sizeof(uint32_t), __FILE__, __LINE__);
+
     for (int i = 0; i < files_size*files_size; i++)
         files_data[0][i] = i;
     
