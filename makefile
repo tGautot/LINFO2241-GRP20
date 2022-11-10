@@ -30,6 +30,10 @@ server-basic: helper.o
 	gcc -pthread src/server-optim.c -o bin/server-basic.o -c -DOPTIM=0 -mno-sse2 -mno-avx -mno-avx2 -mno-avx512f -fno-unroll-loops -fno-tree-vectorize -O2 
 	gcc -o server-basic bin/server-basic.o bin/helper.o 
 
+server-loop: helper.o
+	gcc -pthread src/server-optim.c -o bin/server-loop.o -c -DOPTIM=10 -mno-sse2 -mno-avx -mno-avx2 -mno-avx512f -fno-unroll-loops -fno-tree-vectorize -O2 
+	gcc -o server-loop bin/server-loop.o bin/helper.o 
+
 
 clean:
 	rm -rf bin

@@ -102,6 +102,23 @@ void* server_routine(int sockfd, uint32_t file_size){
                         crypted[aline + k+6] += file[vline + k+6]*r;
                         crypted[aline + k+7] += file[vline + k+7]*r;
                     }
+#elif OPTIM==10
+                    int tot = 0;
+                    for (int k = 0; k < key_size; k+=4) {
+                        int vline = (vstart+k) * file_size + hstart;
+                        tot += key[ln*key_size + k] * file[vline + col];
+
+                        vline = (vstart+k+1) * file_size + hstart;
+                        tot += key[ln*key_size + k+1] * file[vline + col];
+
+                        vline = (vstart+k+2) * file_size + hstart;
+                        tot += key[ln*key_size + k+2] * file[vline + col];
+
+                        vline = (vstart+k+3) * file_size + hstart;
+                        tot += key[ln*key_size + k+3] * file[vline + col];
+                    }
+                    crypted[aline + col] = tot;
+
 #else
 
                     uint32_t r = key[ln*key_size + col];
@@ -126,7 +143,8 @@ void* server_routine(int sockfd, uint32_t file_size){
     //DEBUG("file_size = %d\n",sz);
     send(sockfd, crypted, sz, MSG_NOSIGNAL);
     //free(crypted);
-    close(sockfd);
+
+    //close(sockfd);
 
 }
 
