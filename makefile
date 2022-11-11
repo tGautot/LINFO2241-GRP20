@@ -16,22 +16,22 @@ server: helper.o
 
 # server fully optimized (loop unrolling and matrix multiplication)
 server-optim: helper.o
-	# gcc src/server-optim.c -D _DEBUG -o bin/server-optim.o -c -mno-sse2 -mno-avx -mno-avx2 -mno-avx512f -fno-unroll-loops -fno-tree-vectorize -O2 
+	# gcc src/server-optim.c -D _DEBUG -o bin/server-optim.o -c -g -mno-sse2 -mno-avx -mno-avx2 -mno-avx512f -fno-unroll-loops -fno-tree-vectorize -O2 
 	gcc -pthread src/server-optim.c -o bin/server-optim.o -c -DOPTIM=1 -mno-sse2 -mno-avx -mno-avx2 -mno-avx512f -fno-unroll-loops -fno-tree-vectorize -O2 
 	gcc -o server-optim bin/server-optim.o bin/helper.o 
 
 # server with only optimized matrix multiplication
 server-mem: helper.o
-	gcc -pthread src/server-optim.c -o bin/server-mem.o -c -DOPTIM=2 -mno-sse2 -mno-avx -mno-avx2 -mno-avx512f -fno-unroll-loops -fno-tree-vectorize -O2 
+	gcc -pthread src/server-optim.c -o bin/server-mem.o -c -g -DOPTIM=2 -mno-sse2 -mno-avx -mno-avx2 -mno-avx512f -fno-unroll-loops -fno-tree-vectorize -O2 
 	gcc -o server-mem bin/server-mem.o bin/helper.o 
 
 # server without optimization
 server-basic: helper.o
-	gcc -pthread src/server-optim.c -o bin/server-basic.o -c -DOPTIM=0 -mno-sse2 -mno-avx -mno-avx2 -mno-avx512f -fno-unroll-loops -fno-tree-vectorize -O2 
+	gcc -pthread src/server-optim.c -o bin/server-basic.o -c -g -DOPTIM=0 -mno-sse2 -mno-avx -mno-avx2 -mno-avx512f -fno-unroll-loops -fno-tree-vectorize -O2 
 	gcc -o server-basic bin/server-basic.o bin/helper.o 
 
 server-loop: helper.o
-	gcc -pthread src/server-optim.c -o bin/server-loop.o -c -DOPTIM=10 -mno-sse2 -mno-avx -mno-avx2 -mno-avx512f -fno-unroll-loops -fno-tree-vectorize -O2 
+	gcc -pthread src/server-optim.c -o bin/server-loop.o -c -g -DOPTIM=10 -mno-sse2 -mno-avx -mno-avx2 -mno-avx512f -fno-unroll-loops -fno-tree-vectorize -O2 
 	gcc -o server-loop bin/server-loop.o bin/helper.o 
 
 
